@@ -496,7 +496,6 @@ class SupportButton(Button):
                 panel_mentions.append(role.mention)
 
         support_roles.extend(panel_roles)
-        support_mentions.extend(panel_mentions)
 
         overwrite = {
             guild.default_role: discord.PermissionOverwrite(read_messages=False),
@@ -771,7 +770,12 @@ class SupportButton(Button):
             add_ticket_answer_fields(em, answers, field_name_format="__{question}__")
 
             view = LogView(guild, channel_or_thread, panel.max_claims, cog=self.view.cog)
-            log_message = await logchannel.send(embed=em, view=view)
+            log_message = await logchannel.send(
+                content=" ".join(panel_mentions) if panel_mentions else None,
+                embed=em,
+                view=view,
+                allowed_mentions=discord.AllowedMentions(roles=True),
+            )
         else:
             log_message = None
 

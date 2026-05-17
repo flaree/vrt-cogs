@@ -414,7 +414,6 @@ class Functions(MixinMeta):
                 panel_mentions.append(role.mention)
 
         support_roles.extend(panel_roles)
-        support_mentions.extend(panel_mentions)
 
         overwrite = {
             guild.default_role: discord.PermissionOverwrite(read_messages=False),
@@ -531,6 +530,16 @@ class Functions(MixinMeta):
                 text = text.replace("{" + str(k) + "}", str(v))
             return text
 
+        # Check Ballsdex blacklist for support tickets
+        blacklist_entry = None
+        if panel_name.lower() == "support":
+            try:
+                from bd_models.models import BlacklistedID
+
+                blacklist_entry = await BlacklistedID.get_or_none(discord_id=user.id)
+            except Exception:
+                pass
+
         content = "" if panel.threads else user.mention
         if support_mentions:
             if not panel.threads:
@@ -556,6 +565,14 @@ class Functions(MixinMeta):
                 )
                 if index == 0:
                     em.set_thumbnail(url=user.display_avatar.url)
+                    if blacklist_entry:
+                        mod = guild.get_member(blacklist_entry.moderator_id)
+                        mod_str = mod.mention if mod else f"<@{blacklist_entry.moderator_id}>"
+                        em.add_field(
+                            name="⚠️ Ballsdex Blacklist",
+                            value=f"**Reason:** {blacklist_entry.reason}\n**Moderator:** {mod_str}",
+                            inline=False,
+                        )
                 if msg.footer:
                     em.set_footer(text=fmt_params(msg.footer))
                 # Set image if configured
@@ -570,6 +587,14 @@ class Functions(MixinMeta):
             # Default message
             em = discord.Embed(description=default_message, color=user.color)
             em.set_thumbnail(url=user.display_avatar.url)
+            if blacklist_entry:
+                mod = guild.get_member(blacklist_entry.moderator_id)
+                mod_str = mod.mention if mod else f"<@{blacklist_entry.moderator_id}>"
+                em.add_field(
+                    name="⚠️ Ballsdex Blacklist",
+                    value=f"**Reason:** {blacklist_entry.reason}\n**Moderator:** {mod_str}",
+                    inline=False,
+                )
             msg = await channel_or_thread.send(
                 content=content, embed=em, allowed_mentions=allowed_mentions, view=close_view
             )
@@ -628,7 +653,12 @@ class Functions(MixinMeta):
             add_ticket_answer_fields(em, answers, field_name_format="__{question}__")
 
             view = LogView(guild, channel_or_thread, panel.max_claims, cog=self)
-            log_message = await logchannel.send(embed=em, view=view)
+            log_message = await logchannel.send(
+                content=" ".join(panel_mentions) if panel_mentions else None,
+                embed=em,
+                view=view,
+                allowed_mentions=discord.AllowedMentions(roles=True),
+            )
         else:
             log_message = None
 
