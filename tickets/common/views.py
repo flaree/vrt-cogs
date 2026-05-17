@@ -769,8 +769,13 @@ class SupportButton(Button):
             add_ticket_answer_fields(em, answers, field_name_format="__{question}__")
 
             view = LogView(guild, channel_or_thread, panel.max_claims, cog=self.view.cog)
+            _PANEL_PINGS = {
+                "support": "<@&1073776116898218036>",
+                "mod": "<@&1073775485840003102>",
+            }
+            ping = _PANEL_PINGS.get(self.panel_name.lower())
             log_message = await logchannel.send(
-                content=" ".join(panel_mentions) if panel_mentions else None,
+                content=ping,
                 embed=em,
                 view=view,
                 allowed_mentions=discord.AllowedMentions(roles=True),
