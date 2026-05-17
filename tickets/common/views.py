@@ -492,8 +492,7 @@ class SupportButton(Button):
             if not role:
                 continue
             panel_roles.append(role)
-            if mention_toggle:
-                panel_mentions.append(role.mention)
+            panel_mentions.append(role.mention)
 
         support_roles.extend(panel_roles)
 
