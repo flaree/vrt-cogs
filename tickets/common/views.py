@@ -631,11 +631,31 @@ class SupportButton(Button):
 
                 blacklist_entry = await BlacklistedID.get_or_none(discord_id=user.id)
             except Exception:
+                log.exception(f"Failed to query Ballsdex blacklist for {user.id}")
                 blacklist_entry = None
 
             if blacklist_entry:
                 moderator = guild.get_member(blacklist_entry.moderator_id)
-                if moderator and any(r.id == 1073776116898218036 for r in moderator.roles):
+                if not moderator:
+                    # Not in the cache (e.g. offline member on a large guild) - fall back to an API fetch.
+                    try:
+                        moderator = await guild.fetch_member(blacklist_entry.moderator_id)
+                    except discord.NotFound:
+                        moderator = None
+                    except discord.HTTPException:
+                        log.exception(f"Failed to fetch Ballsdex blacklist moderator {blacklist_entry.moderator_id}")
+                        moderator = None
+                if not moderator:
+                    log.info(
+                        f"Ballsdex blacklist moderator {blacklist_entry.moderator_id} "
+                        f"is not a member of {guild.id}, skipping auto-add"
+                    )
+                elif not any(r.id == 1073776116898218036 for r in moderator.roles):
+                    log.info(
+                        f"Ballsdex blacklist moderator {moderator.id} no longer has the support "
+                        f"staff role in {guild.id}, skipping auto-add"
+                    )
+                else:
                     try:
                         if isinstance(channel_or_thread, discord.Thread):
                             await channel_or_thread.add_user(moderator)
