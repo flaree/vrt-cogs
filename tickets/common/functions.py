@@ -536,9 +536,9 @@ class Functions(MixinMeta):
             try:
                 from bd_models.models import BlacklistedID
 
-                blacklist_entry = await BlacklistedID.get_or_none(discord_id=user.id)
+                blacklist_entry = await BlacklistedID.objects.filter(discord_id=user.id).afirst()
             except Exception:
-                pass
+                log.exception(f"Failed to query Ballsdex blacklist for {user.id}")
 
         content = "" if panel.threads else user.mention
         if support_mentions:
