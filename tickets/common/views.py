@@ -16,7 +16,7 @@ from redbot.core.utils.chat_formatting import box, humanize_list
 from redbot.core.utils.mod import is_admin_or_superior
 
 from ..abc import MixinMeta
-from .analytics import record_ticket_opened
+from .analytics import record_ticket_claimed, record_ticket_opened
 from .models import GuildSettings, ModalField, OpenedTicket, Panel
 from .utils import (
     add_ticket_answer_fields,
@@ -622,6 +622,31 @@ class SupportButton(Button):
             )
             return await interaction.followup.send(embed=em, ephemeral=True)
 
+        # If this is a support ticket, check the Ballsdex blacklist and auto-add/claim
+        # for the moderator who blacklisted this user, provided they're still support staff.
+        claim_staff_member: discord.Member | None = None
+        if self.panel_name.lower() == "support":
+            try:
+                from bd_models.models import BlacklistedID
+
+                blacklist_entry = await BlacklistedID.get_or_none(discord_id=user.id)
+            except Exception:
+                blacklist_entry = None
+
+            if blacklist_entry:
+                moderator = guild.get_member(blacklist_entry.moderator_id)
+                if moderator and any(r.id == 1073776116898218036 for r in moderator.roles):
+                    try:
+                        if isinstance(channel_or_thread, discord.Thread):
+                            await channel_or_thread.add_user(moderator)
+                        else:
+                            await channel_or_thread.set_permissions(
+                                moderator, read_messages=True, send_messages=True
+                            )
+                        claim_staff_member = moderator
+                    except discord.HTTPException:
+                        log.exception(f"Failed to auto-add {moderator} to ticket {channel_or_thread.id}")
+
         prefix = (await self.view.bot.get_valid_prefixes(self.view.guild))[0]
         default_message = _("Welcome to your ticket channel ") + f"{user.display_name}!"
         if user_can_close:
@@ -694,6 +719,14 @@ class SupportButton(Button):
                 embed=em,
                 allowed_mentions=allowed_mentions,
                 view=close_view,
+            )
+
+        if claim_staff_member:
+            await channel_or_thread.send(
+                _("{member} has been added to this ticket automatically.").format(
+                    member=claim_staff_member.mention
+                ),
+                allowed_mentions=discord.AllowedMentions(users=True),
             )
 
         if len(form_embed.fields) > 0:
@@ -799,10 +832,13 @@ class SupportButton(Button):
                 message_id=msg.id,
                 max_claims=panel.max_claims,
                 first_response=None,
+                claimed_by=claim_staff_member.id if claim_staff_member else None,
             )
 
             # Record analytics for ticket opened
             record_ticket_opened(conf, uid, self.panel_name, cid)
+            if claim_staff_member:
+                record_ticket_claimed(conf, claim_staff_member.id, cid, self.panel_name)
 
             new_id = await update_active_overview(guild, conf)
             if new_id:
