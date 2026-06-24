@@ -801,6 +801,15 @@ class SupportButton(Button):
 
             add_ticket_answer_fields(em, answers, field_name_format="__{question}__")
 
+            if claim_staff_member:
+                em.add_field(
+                    name=_("Auto-Claimed"),
+                    value=_("{member} was added and has automatically claimed this ticket.").format(
+                        member=claim_staff_member.mention
+                    ),
+                    inline=False,
+                )
+
             view = LogView(guild, channel_or_thread, panel.max_claims, cog=self.view.cog)
             _PANEL_PINGS = {
                 "support": "<@&1073776116898218036>",
